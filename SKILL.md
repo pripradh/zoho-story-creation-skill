@@ -35,9 +35,9 @@ Run:
 ```bash
 python3 create_prd_sprint_item.py --check-setup
 ```
-(from `Work/Product Work/Collexo/PRD/scripts/`)
+(from `scripts/` in this repo)
 
-This checks for a usable `.env` (via `--env-file`, `ZOHO_SPRINT_ENV`, a colocated `.env`, or the legacy `~/.collexo/sprint-sync/.env` fallback, in that order) and actually exchanges the refresh token for an access token, so a stale or revoked credential is caught here too, not just a missing file.
+This checks for a usable `.env` (via `--env-file`, `ZOHO_SPRINT_ENV`, or a colocated `.env` in `scripts/`, in that order) and actually exchanges the refresh token for an access token, so a stale or revoked credential is caught here too, not just a missing file.
 
 - **If it prints `OK`**, proceed to Step 1.
 - **If it fails**, stop here and walk the user through `scripts/README.md`'s "Get Zoho OAuth credentials" section before continuing: creating a Zoho self-client, generating `ZOHO_CLIENT_ID`/`ZOHO_CLIENT_SECRET`/`ZOHO_REFRESH_TOKEN`, copying `scripts/.env.example` to `scripts/.env`, and filling in the values (plus `ZOHO_DC` if the org isn't on the India datacenter). Re-run `--check-setup` until it passes. Do not attempt to slice or write stories while the connection is unconfirmed.
@@ -88,7 +88,7 @@ Every story in the new sprint should map to whichever *existing* epic in the tar
 - **Known epics live in `sprint_config.json`**, under each project's `"epics"` block (`{epicId: name}`); that file is the source of truth, not this skill. Do not restate specific epic IDs or names here; if a list is ever written into this doc, treat it as already stale and go check the config instead.
 - **Finding an epic's ID:**
   1. Check `sprint_config.json`'s `"epics"` block for the target project first - if the epic is already named there, use its ID directly.
-  2. If it isn't (a new epic, or one not yet confirmed), run `python3 create_prd_sprint_item.py --discover-epics --project <key>` (from `Work/Product Work/Collexo/PRD/scripts/`). This is a single live, read-only call (`epicId` is a standard field, already populated in the cheap bulk list response, so no local sync data is needed) that lists every epicId actually in use on that project's backlog, marking each as already-named or `UNKNOWN`.
+  2. If it isn't (a new epic, or one not yet confirmed), run `python3 create_prd_sprint_item.py --discover-epics --project <key>` (from `scripts/` in this repo). This is a single live, read-only call (`epicId` is a standard field, already populated in the cheap bulk list response, so no local sync data is needed) that lists every epicId actually in use on that project's backlog, marking each as already-named or `UNKNOWN`.
   3. Zoho's dedicated "Get epics" API is blocked by a missing OAuth scope on this credential set (confirmed live 2026-08-31, `401 Invalid oauthscope`), so an `UNKNOWN` epicId's *name* can't be fetched automatically. Open one example item the command prints for that epicId in the Zoho Sprints UI, read its Epic field, and add `"<epicId>": "<name>"` to that project's `"epics"` block in `sprint_config.json` yourself. Once added, every future run (any PRD, any session) recognizes it - each epicId only needs naming once, ever.
 - Once resolved, note which epic this specific PRD used in that PRD's own `CLAUDE.md` decisions log (that's per-PRD provenance, distinct from the master epicId→name mapping which stays solely in `sprint_config.json`).
 
@@ -201,8 +201,8 @@ Read `references/quality-gates.md` and check every story against it before punch
 ## Step 7: Run the Script
 
 - **Never use the `claude.ai Zoho Sprint` MCP connector**: it's unauthenticated and is not how this actually works.
-- **Real auth mechanism:** each person running this needs their own Zoho OAuth credentials in a `.env` file; see Step 0 above and `scripts/README.md`. This workspace's original setup happens to resolve to `~/.collexo/sprint-sync/.env` (Team ID `60043431118`) via the fallback chain, which is the same credential set the sprint-sync job and the ticket-reply skill's bug-item creation already use successfully, but that path is not required for anyone else.
-- **Script:** `Work/Product Work/Collexo/PRD/scripts/create_prd_sprint_item.py`, with its own copy of `sprint_config.json` alongside it. **Never edit `~/.meritto/Raw Ticket Data/create_sprint_item.py` directly**: that script is live infrastructure for the `ticket-reply` skill's bug-item creation. This is its own fork.
+- **Real auth mechanism:** each person running this needs their own Zoho OAuth credentials in a `.env` file; see Step 0 above and `scripts/README.md`.
+- **Script:** `scripts/create_prd_sprint_item.py` in this repo, with its own copy of `sprint_config.json` alongside it in the same folder. If you also maintain a separate script for bug-item creation elsewhere, keep the two separate; this one is scoped to PRD-to-Sprint story generation only.
 - **Every PRD gets its own new sprint, named after the PRD/feature name.** Do not add stories to whatever sprint is currently active.
 
 ```bash
@@ -230,7 +230,3 @@ python3 create_prd_sprint_item.py --new-sprint "Feature Name" \
 - `references/slicing-and-sequencing.md`: pre-writing analysis, the slicing method and independence tests, release-order principles, and live-release extension mode. Read before Step 3.
 - `references/story-format.md`: section-by-section rules behind the Step 4 template, and the mandatory acceptance-criteria scenario categories. Read while drafting.
 - `references/quality-gates.md`: quality gate checklists, common failure patterns, and the definition of done. Read before Step 6.
-
----
-
-*← [[Work/Product Work/Collexo/PRD/CLAUDE|Collexo PRD]]*

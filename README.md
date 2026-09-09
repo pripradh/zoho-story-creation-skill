@@ -55,12 +55,23 @@ anything is created.
 ## Requirements
 
 - A Zoho Sprints account with API access
+- Python 3 with `requests` installed (`pip install -r scripts/requirements.txt`)
 - Your own Zoho OAuth credentials (`ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`,
   `ZOHO_REFRESH_TOKEN`, and `ZOHO_DC` if your org isn't on the India
-  datacenter), supplied via a `.env` file
-- A companion script that talks to the Zoho Sprints API (not included in this
-  repo) and a `sprint_config.json` holding your org's project/epic/owner-field
-  mappings
+  datacenter), supplied via a `.env` file in `scripts/` (see
+  `scripts/.env.example` and `scripts/README.md`)
+
+## Setup
+
+1. `cd scripts/`
+2. `pip install -r requirements.txt`
+3. `cp .env.example .env` and fill in your own Zoho OAuth credentials (see
+   `scripts/README.md`'s "Get Zoho OAuth credentials" section for how to
+   obtain them)
+4. Run `python3 create_prd_sprint_item.py --check-setup` and confirm it prints `OK`
+5. Edit `scripts/sprint_config.json` for your own org's Zoho project, epic,
+   and owner-field mappings before the first run against a new project (the
+   skill's Step 0/1b walks through discovering these live from the Zoho API)
 
 ## Usage
 

@@ -1,0 +1,198 @@
+{
+  "team_id": "60043431118",
+  "projects": {
+    "collexo-bugs": {
+      "name": "Collexo_Live_Bugs",
+      "project_id": "39713000000188589",
+      "backlog_id": "39713000000191149",
+      "item_types": {
+        "Bug on Production": "39713000000198536",
+        "Bug":               "39713000000198533",
+        "Debugging":         "39713000000198535",
+        "Only Query":        "39713000000198537",
+        "Known Cases":       "39713000000198581",
+        "Story":             "39713000000198534",
+        "Task":              "39713000000198532",
+        "Test Cases":        "39713000000198638",
+        "UAT Testing":       "39713000004940491",
+        "Doc Discussion":    "39713000004940495",
+        "Demo":              "39713000004940499",
+        "Meeting":           "39713000004940503",
+        "Code Review":       "39713000004940507"
+      },
+      "priorities": {
+        "None":      "39713000000198903",
+        "Low":       "39713000000198904",
+        "Medium":    "39713000000198905",
+        "High":      "39713000000198906",
+        "Red Alert": "39713000000198907"
+      },
+      "defaults": {
+        "item_type": "Bug on Production",
+        "priority":  "High"
+      }
+    },
+    "bugs-issues": {
+      "name": "Bugs & Issues",
+      "project_id": "39713000000188587",
+      "backlog_id": "39713000000191070",
+      "item_types": {
+        "Bug on Production": "39713000000198527",
+        "Bug":               "39713000000198524",
+        "Debugging":         "39713000000198525",
+        "Only Query":        "39713000000198526",
+        "Story":             "39713000000198522",
+        "Task":              "39713000000198520",
+        "Code Review":       "39713000000198630",
+        "Meeting":           "39713000000198637"
+      },
+      "priorities": {
+        "None":      "39713000000198892",
+        "Low":       "39713000000198893",
+        "Medium":    "39713000000198894",
+        "High":      "39713000000198895",
+        "Red Alert": "39713000000198896"
+      },
+      "defaults": {
+        "item_type": "Bug on Production",
+        "priority":  "High"
+      }
+    },
+    "collexo-team1": {
+      "name": "Collexo_Team_1",
+      "project_id": "39713000000188588",
+      "backlog_id": "39713000000191148",
+      "item_types": {
+        "Bug on Production": "39713000000198540",
+        "Bug":               "39713000000198530",
+        "Debugging":         "39713000000198539",
+        "Only Query":        "39713000004940511",
+        "Known Cases":       "39713000000198582",
+        "Story":             "39713000000198531",
+        "Task":              "39713000000198529",
+        "Test Cases":        "39713000000198538",
+        "UAT Testing":       "39713000004940515",
+        "Doc Discussion":    "39713000004940519",
+        "Demo":              "39713000004940523",
+        "Meeting":           "39713000004940527",
+        "Code Review":       "39713000004940531"
+      },
+      "priorities": {
+        "None":      "39713000000198899",
+        "Low":       "39713000000198900",
+        "Medium":    "39713000000198901",
+        "High":      "39713000000198902",
+        "Red Alert": "39713000000198908"
+      },
+      "defaults": {
+        "item_type": "Story",
+        "priority":  "Medium"
+      },
+      "owner_fields": {
+        "qa_owner":  "UDF_USERPKL2",
+        "dev_owner": "UDF_USERPKL3",
+        "task_type": "UDF_PKL4"
+      },
+      "owner_defaults": {
+        "qa_owner_id":  "39713000000188144",
+        "dev_owner_id": "39713000000188151",
+        "assigned_ids": ["39713000000188151"],
+        "task_type_id": "39713000003134822"
+      },
+      "_owner_notes": "owner_fields (UDF_USERPKL2/3, UDF_PKL4) confirmed live 2026-08-25 by reading the raw item detail of item 39713000006159901 (item_no 8836) and cross-checking against its synced JSON in Sprint/active/planned-release/collexo/sprint-187-777-*.json. Confirmed 2026-08-31 that these same field keys are shared with pixi-team1 too (Meritto's sprint-sync job's UDF_PLANNED_RELEASE map is keyed by dataset type, not per-project) - what differs per project is only the owner_defaults values, not the field keys. QA Owner default is Rupendra Sharma, Dev Owner and Assigned To default is Ujjwal Goyal, Task Type default is the 'Planned' picklist option.",
+      "epics": {
+        "39713000000199255": "Transactions",
+        "39713000000199257": "Ledger and Applicant Profile",
+        "39713000000199260": "Workflows and Discounts",
+        "39713000000199252": "APIs, Webhooks, Widget and Integrations"
+      },
+      "_epics_notes": "Only these 4 of Collexo_Team_1's 14 known epics (see this PRD's collexo-prd-sprint SKILL.md) have a confirmed numeric ID; the rest are known by name only. Zoho's dedicated 'Get epics' API is blocked by a missing OAuth scope on this credential set (confirmed live 2026-08-31, 401 Invalid oauthscope), so a new epic's numeric ID has to be found via --discover-epics (which lists IDs in use, live) and named manually by checking one example item in the Zoho UI - never guessed from an item's title. Epic 39713000000199252 confirmed as 'APIs, Webhooks, Widget and Integrations' by Pritam 2026-09-08 (example item: 'SSO Third Party Integration and Implementation'), used for the Nexeo Account Connection PRD's stories. This is Collexo's own Zoho Sprints epic list and must not be confused with Nexeo's separate epic/module naming in its own repo. --discover-epics on 2026-08-31 found 4 more in-use epicIds still unnamed: 39713000000199353, 39713000000199258, 39713000000199256, 39713000000199254."
+    },
+    "pixi-team1": {
+      "name": "Pixi_Team_1",
+      "project_id": "39713000003942188",
+      "backlog_id": "39713000003942194",
+      "item_types": {
+        "Bug on Production": "39713000003942258",
+        "Bug":               "39713000003942228",
+        "Debugging":         "39713000003942254",
+        "Only Query":        "39713000004940541",
+        "Known Cases":       "39713000003942240",
+        "Story":             "39713000003942230",
+        "Task":              "39713000003942226",
+        "Test Cases":        "39713000003942248",
+        "UAT Testing":       "39713000004940545",
+        "Doc Discussion":    "39713000004940549",
+        "Demo":              "39713000004940553",
+        "Meeting":           "39713000004940557",
+        "Code Review":       "39713000004940561"
+      },
+      "priorities": {
+        "None":      "39713000003942218",
+        "Low":       "39713000003942220",
+        "Medium":    "39713000003942222",
+        "High":      "39713000003942224",
+        "Red Alert": "39713000003942260"
+      },
+      "defaults": {
+        "item_type": "Story",
+        "priority":  "Medium"
+      },
+      "owner_fields": {
+        "qa_owner":  "UDF_USERPKL2",
+        "dev_owner": "UDF_USERPKL3",
+        "task_type": "UDF_PKL4"
+      },
+      "owner_defaults": {
+        "qa_owner_id":  "39713000000188146",
+        "dev_owner_id": "39713000000188154",
+        "assigned_ids": ["39713000000188154"],
+        "task_type_id": "39713000003134822"
+      },
+      "_owner_notes": "owner_fields reused from collexo-team1 (confirmed shared across the planned-release family by the sprint-sync job's own UDF_PLANNED_RELEASE map, not re-derived here). owner_defaults discovered live 2026-08-31 via --discover-owner-defaults against the Pixi_Team_1 backlog (30-item sample): QA Owner Bhawna Lakhani (39713000000188146, 17/30 in-sample), Dev Owner/Assigned To Manish Kumar Tiwari (39713000000188154, picked by Pritam over the live sample's own top result Sarthak Vohra and the all-time historical leader sourabh sharma), Task Type defaulted to the 'Planned' picklist option (39713000003134822) since no backlog item in the sample had Task Type set at all (it appears to get set only once an item enters a sprint) but that same picklist ID is confirmed shared team-wide via collexo-team1."
+    },
+    "collexo-roadmap": {
+      "name": "Collexo Product Roadmap",
+      "project_id": "39713000000188600",
+      "backlog_id": "39713000000191455",
+      "item_types": {
+        "Story":       "39713000000198589",
+        "Task":        "39713000000198587",
+        "Bug":         "39713000000198588",
+        "Known Cases": "39713000000198593"
+      },
+      "priorities": {
+        "None":   "39713000000198951",
+        "Low":    "39713000000198952",
+        "Medium": "39713000000198953",
+        "High":   "39713000000198954"
+      },
+      "defaults": {
+        "item_type": "Story",
+        "priority":  "Medium"
+      }
+    },
+    "pixi-roadmap": {
+      "name": "Pixi Product Roadmap",
+      "project_id": "39713000003943265",
+      "backlog_id": "39713000003943271",
+      "item_types": {
+        "Story":       "39713000003943307",
+        "Task":        "39713000003943303",
+        "Bug":         "39713000003943305",
+        "Known Cases": "39713000003943315"
+      },
+      "priorities": {
+        "None":   "39713000003943295",
+        "Low":    "39713000003943297",
+        "Medium": "39713000003943299",
+        "High":   "39713000003943301"
+      },
+      "defaults": {
+        "item_type": "Story",
+        "priority":  "Medium"
+      }
+    }
+  },
+  "aliases": {}
+}

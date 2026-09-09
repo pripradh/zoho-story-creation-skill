@@ -110,7 +110,7 @@ Include every category that materially applies to the story; do not force one th
 
 ### 5.2 Do not over-specify unsupported technical detail
 
-Do not invent HTTP status codes, table names, column names, queue names, lock technology, retry counts, timeout values, or API fields unless the PRD or an established platform contract provides them (check the relevant module summary in `_context/module-summaries/` first).
+Do not invent HTTP status codes, table names, column names, queue names, lock technology, retry counts, timeout values, or API fields unless the PRD or an established platform contract provides them (check your own internal module/system reference docs first, if you keep them).
 
 Write at behavior level:
 
