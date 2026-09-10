@@ -73,6 +73,21 @@ Create a separate story when behaviors differ materially in any of these dimensi
 
 Do **not** create separate stories merely because different repos or codebases are involved, and never split a single behavior into an FE story and a BE story: request validation, persistence, and the user-visible result belong in one story together.
 
+### 1.4a Default to the smaller side of a split
+
+When a boundary from the list above could justify a split, split it. Do not fold it into a larger story "to keep the count down": story count is not a target to minimize, and bundling several materially different outcomes into one card is exactly what leaves Dev and QA guessing which of five Given/When/Thens actually needs to ship together. This is the default to apply on the first pass, not something to check with the user each time; only raise the granularity question with the user when a PRD's shape genuinely doesn't fit the patterns below (e.g. a stateful multi-entity workflow these rules of thumb don't obviously cover).
+
+Concretely, for a typical API-and-a-UI-card feature, this usually means separate stories for:
+
+- **The primary success path**, including any legitimate multi-result cardinality (returning one match vs. several is the same underlying behavior, not a boundary; don't split on cardinality alone).
+- **Each materially different non-success resulting state** that represents an outcome distinct from success: not-found, a permission conflict, a blocked state. These are separate stories even though they depend on the primary story existing first. A dependency does not disqualify a story from being separate (Story 3 depending on Story 2 is already the pattern this skill uses elsewhere).
+- **Rejecting a malformed or unauthorized call**, as one combined story per endpoint (missing/invalid fields, bad credentials, rate limit, service unavailable together). Do not atomize this further into one story per status code: 400 vs. 401 vs. 429 vs. 503 are not materially different product behaviors, just different triggers of the same "reject an invalid call" concern, and splitting on status code alone is the same mechanical-splitting mistake as splitting on technical layer.
+- **A safe-repeat or idempotent-return behavior**, as its own story separate from first-time issuance, when the endpoint has one.
+- **A permission or ownership conflict check**, as its own story separate from each write path it guards, once per distinct trigger it protects, even when the underlying check is shared code (a conflict check reused by both a plain update and a force-reset gets one story per path, since each is a materially different trigger).
+- **An emergent, cross-story consequence worth proving explicitly**, when one story's behavior changes because of it (e.g. a delete/disable story existing changes what "reconnect" or "recreate" now does elsewhere). Even though no new code is required, a story that states and verifies the emergent behavior keeps it from being assumed rather than confirmed.
+
+Worked reference: the Nexeo Account Connection PRD's three endpoints and one UI card produced 14 stories under this default (Verify: success / not-found / reject-invalid; Generate: first-time / safe-repeat / reject-invalid / conflict-block; Regenerate: owning-account / different-account-block; the UI card: not-connected / connected; Delete: success / reject-invalid-or-repeat; plus the emergent reconnect-after-delete story), not the 6 that a first pass produced by bundling each endpoint's whole behavior into one card.
+
 ### 1.5 Determine release order
 
 Order by product dependency, never by team ownership. Typical principles for Collexo features:
