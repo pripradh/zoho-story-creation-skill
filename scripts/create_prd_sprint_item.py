@@ -728,6 +728,33 @@ def create_item(token, project_id, sprint_id, name, type_id, priority_id, base_u
         sys.exit(1)
     return result
 
+
+def update_item(token, project_id, sprint_id, item_id, base_url, name=None, description=None):
+    """Update an already-created item's name and/or description.
+
+    Per Zoho's own "Update item" API (sprints.zoho.in/apidoc.html#Updateitem):
+    POST {APIEndPoint}/team/{teamId}/projects/{projectId}/sprints/{sprintId}/item/{itemId}/
+    — POST, not PUT, despite being a partial update; only the fields passed are
+    changed, everything else on the item is left as-is.
+    """
+    url  = f"{base_url}/projects/{project_id}/sprints/{sprint_id}/item/{item_id}/"
+    data = {}
+    if name is not None:
+        data["name"] = name
+    if description is not None:
+        data["description"] = description
+    if not data:
+        print("ERROR: update_item called with nothing to update.")
+        sys.exit(1)
+
+    resp = requests.post(url, headers={"Authorization": f"Zoho-oauthtoken {token}"}, data=data, timeout=30)
+    resp.raise_for_status()
+    result = resp.json()
+    if result.get("status") != "success":
+        print(f"ERROR: {result}")
+        sys.exit(1)
+    return result
+
 # ── Story file parsing ────────────────────────────────────────────────────────
 # A --story-file is expected to already be in the locked story format (see
 # SKILL.md Step 5). The subject/name for the Sprint item is the short action
@@ -756,6 +783,77 @@ def subject_from_story(text):
     # field has a length limit and a truncated-but-created subject beats a 500.
     return subject if len(subject) <= 250 else subject[:247].rstrip() + "..."
 
+
+def story_id_from_story(text):
+    """Pulls the 'STORY ID: ...' line from a story's header block.
+
+    This is the stable label an --update run looks up in the ids file to find
+    which live Zoho item a story now maps to — the subject/name is expected to
+    change over time (that's the whole point of an update), so it can't be the
+    lookup key.
+    """
+    m = re.search(r"^\s*STORY ID:\s*(.+?)\s*$", text, re.M)
+    return m.group(1).strip() if m else None
+
+
+# ── Locked-format linting ───────────────────────────────────────────────────────
+# Structural misses (a two-part STORY ID, a missing TEAM field, an unnumbered
+# scenario, a missing EXAMPLE CASES section) have actually happened in a real
+# run despite being spelled out in SKILL.md and story-format.md. Re-reading the
+# docs more carefully next time is not a fix, since that is exactly what failed
+# — the same story text can be re-derived from a prior (already wrong) story
+# instead of from the locked template, and no amount of documentation stops
+# that. So these checks are mechanical and run unconditionally before Step 7 in
+# main(), not a step someone can forget to perform by hand. Plain language and
+# behavioral correctness still need human/model judgment and are not checked
+# here — only what a script can verify without understanding the content.
+
+_REQUIRED_HEADER_FIELDS = ["STORY ID", "MODULE / EPIC", "TEAM", "PRIORITY", "STORY POINTS", "FEATURE FLAG"]
+_REQUIRED_SECTIONS = [
+    "STORY HEADER", "USER STORY STATEMENT", "DESCRIPTION", "PREREQUISITES",
+    "USER / SYSTEM FLOW", "ACCEPTANCE CRITERIA", "EXAMPLE CASES",
+    "VALIDATIONS", "OUT OF SCOPE", "DEPENDENCIES", "DESIGN / PROTOTYPE REFERENCE",
+]
+
+
+def lint_story(text):
+    """Checks one story block against the locked format's mechanically
+    checkable rules. Returns a list of violation strings; empty means it passes."""
+    problems = []
+
+    for field in _REQUIRED_HEADER_FIELDS:
+        if not re.search(rf"^\s*{re.escape(field)}:\s*\S", text, re.M):
+            problems.append(f"Missing '{field}:' line in the story header.")
+
+    story_id_m = re.search(r"^\s*STORY ID:\s*(.+?)\s*$", text, re.M)
+    if story_id_m and story_id_m.group(1).count("|") < 2:
+        problems.append(
+            f"STORY ID needs three parts, Feature | Story N | Behavior, "
+            f"got: {story_id_m.group(1)!r}"
+        )
+
+    for section in _REQUIRED_SECTIONS:
+        if not re.search(rf"^-{{2,}}\s*{re.escape(section)}\s*-{{2,}}\s*$", text, re.M):
+            problems.append(f"Missing required section: '--- {section} ---'.")
+
+    ac_m = re.search(r"^-{2,}\s*ACCEPTANCE CRITERIA\s*-{2,}\s*$(.*?)(?=^-{2,}\s*\S|\Z)", text, re.M | re.S)
+    if ac_m:
+        for line in ac_m.group(1).splitlines():
+            line = line.strip()
+            if line.startswith("Scenario") and not re.match(r"^Scenario \d+ - \S", line):
+                problems.append(f"Scenario not written as 'Scenario N - <situation>': {line!r}")
+
+    if "—" in text or "&mdash;" in text:
+        problems.append("Contains an em dash or &mdash; (banned house style rule).")
+    for line in text.splitlines():
+        core = line.strip()
+        if core.startswith("---") or core.endswith("---"):
+            continue  # a "--- SECTION ---" marker, not punctuation
+        if "--" in core:
+            problems.append(f"Contains a double hyphen used as punctuation: {core!r}")
+
+    return problems
+
 # ── Multi-story file splitting ─────────────────────────────────────────────────
 # A --stories-file holds many stories in one file instead of one file per story.
 # Each story already starts with its own "--- STORY HEADER ---" marker (the fixed
@@ -773,6 +871,76 @@ def split_stories(text):
     starts.append(len(text))
     blocks = [text[starts[i]:starts[i + 1]].strip() for i in range(len(starts) - 1)]
     return [b for b in blocks if b]
+
+# ── Story ID tracking ───────────────────────────────────────────────────────────
+# Every creation run appends to a markdown file mapping each story's stable
+# "STORY ID: ..." label to the Zoho item it actually became (item_no for a human
+# reading the file, item_id since that's what the API needs, plus sprint_id and
+# project since an update call needs both). --update reads this file back to
+# find which live item a story with the same STORY ID label should now change,
+# instead of requiring the item ID to be hunted down by hand every time.
+
+_ID_BLOCK_RE = re.compile(r"^## (.+)$", re.M)
+
+
+def append_story_ids(path, entries):
+    """entries: list of (story_id_label, item_no, item_id, sprint_id, project_key)."""
+    p = Path(path)
+    existing = p.read_text() if p.exists() else ""
+    existing_labels = {m.group(1) for m in _ID_BLOCK_RE.finditer(existing)}
+
+    new_blocks = []
+    for label, item_no, item_id, sprint_id, project_key in entries:
+        if label is None:
+            continue  # e.g. a plain --subject item has no STORY ID line to key on
+        if label in existing_labels:
+            print(f"  WARNING: {label!r} already recorded in {path}; not duplicating. "
+                  f"If this is genuinely a new item, its STORY ID label needs to differ.")
+            continue
+        existing_labels.add(label)
+        new_blocks.append(
+            f"## {label}\n"
+            f"- item_no: {item_no}\n"
+            f"- item_id: {item_id}\n"
+            f"- sprint_id: {sprint_id}\n"
+            f"- project: {project_key}\n"
+        )
+    if not new_blocks:
+        return
+
+    with open(p, "a") as f:
+        if not existing:
+            f.write(
+                "# Zoho Sprint Story IDs\n\n"
+                "Auto-generated by create_prd_sprint_item.py. Maps each story's STORY ID "
+                "label to the Zoho item it was created as, so a later --update run knows "
+                "which live item to change. Do not hand-edit item_no/item_id.\n\n"
+            )
+        f.write("\n".join(new_blocks) + "\n")
+    print(f"  Story IDs recorded in {path}")
+
+
+def read_story_ids(path):
+    """Parses the '## label' / '- field: value' blocks append_story_ids writes
+    back into {label: {"item_no": ..., "item_id": ..., "sprint_id": ..., "project": ...}}.
+    """
+    if not Path(path).exists():
+        print(f"ERROR: ids file {path!r} not found. Run a creation pass first "
+              f"(it writes this file automatically), or pass --ids-file to point "
+              f"at the right one.")
+        sys.exit(1)
+    text = Path(path).read_text()
+    mapping, current = {}, None
+    for line in text.splitlines():
+        h = _ID_BLOCK_RE.match(line)
+        if h:
+            current = h.group(1).strip()
+            mapping[current] = {}
+            continue
+        f = re.match(r"^- (\w+):\s*(.+)$", line)
+        if f and current:
+            mapping[current][f.group(1)] = f.group(2).strip()
+    return mapping
 
 # ── Description formatting ────────────────────────────────────────────────────
 # Zoho's item description is rich text (HTML), not plain text — sending the raw
@@ -879,6 +1047,18 @@ def main():
                               "pass the Zoho project's display name (e.g. \"Collexo_Team_1\") "
                               "to fetch its project_id/backlog_id/item_types/priorities live "
                               "and print a ready-to-paste config block. Creates nothing.")
+    parser.add_argument("--ids-file", dest="ids_file", default="zoho-story-ids.md",
+                         help="Markdown file mapping each story's STORY ID label to the Zoho item "
+                              "it became (item_no, item_id, sprint_id, project). Every creation run "
+                              "appends new entries to this file automatically (default: "
+                              "zoho-story-ids.md in the current directory). --update reads it back "
+                              "to find which existing item to change.")
+    parser.add_argument("--update", action="store_true",
+                         help="Update existing items instead of creating new ones. Each story passed "
+                              "via --story-file/--stories-file/--subject must carry the same "
+                              "'STORY ID: ...' label it was originally created with; that label is "
+                              "looked up in --ids-file to find which live item to push the new "
+                              "subject and description onto.")
     args = parser.parse_args()
 
     if args.check_setup:
@@ -933,12 +1113,19 @@ def main():
         print("ERROR: pass --subject (with optional --description-file), one or more --story-file, "
               "or --stories-file.")
         sys.exit(1)
-    if not args.new_sprint and not args.existing_sprint_id:
-        print("ERROR: pass either --new-sprint (to create a fresh sprint) or --existing-sprint-id (to resume one).")
-        sys.exit(1)
-    if args.new_sprint and args.existing_sprint_id:
-        print("ERROR: --new-sprint and --existing-sprint-id are mutually exclusive.")
-        sys.exit(1)
+    if args.update:
+        if args.new_sprint or args.existing_sprint_id:
+            print("ERROR: --update pushes changes onto items looked up in --ids-file; each item's own "
+                  "sprint comes from that file, so --new-sprint/--existing-sprint-id don't apply.")
+            sys.exit(1)
+    else:
+        if not args.new_sprint and not args.existing_sprint_id:
+            print("ERROR: pass either --new-sprint (to create a fresh sprint), --existing-sprint-id "
+                  "(to resume one), or --update (to change existing items instead of creating new ones).")
+            sys.exit(1)
+        if args.new_sprint and args.existing_sprint_id:
+            print("ERROR: --new-sprint and --existing-sprint-id are mutually exclusive.")
+            sys.exit(1)
 
     cfg      = load_config()
     proj_key, proj = resolve_project(cfg, args.project)
@@ -952,6 +1139,80 @@ def main():
     token_url, sprint_api = urls_for_dc(env.get("ZOHO_DC", DEFAULT_ZOHO_DC))
     base_url = f"{sprint_api}/{cfg['team_id']}"
     token = get_access_token(env, token_url)
+
+    # Build the (subject, description, story_id_label) triples to act on.
+    # Descriptions always go through format_story_html — Zoho's description
+    # field is rich text, so the raw "---"-delimited plain text would render as
+    # one unbroken block. story_id_label is None for a plain --subject item
+    # (there's no locked-format header to pull it from, and nothing to lint —
+    # --subject is explicitly the free-form alternative to the locked format).
+    items = []
+    lint_failures = {}
+    if args.subject:
+        desc = format_story_html(Path(args.description_file).read_text()) if args.description_file else None
+        items.append((args.subject, desc, None))
+    for path in args.story_files:
+        text = Path(path).read_text()
+        label = story_id_from_story(text) or path
+        problems = lint_story(text)
+        if problems:
+            lint_failures[label] = problems
+        items.append((subject_from_story(text), format_story_html(text), story_id_from_story(text)))
+    if args.stories_file:
+        blocks = split_stories(Path(args.stories_file).read_text())
+        if not blocks:
+            print(f"ERROR: no stories found in {args.stories_file} "
+                  f"(looked for '--- STORY HEADER ---' markers).")
+            sys.exit(1)
+        for block in blocks:
+            label = story_id_from_story(block) or f"(unlabeled block, starts: {block[:60]!r})"
+            problems = lint_story(block)
+            if problems:
+                lint_failures[label] = problems
+            items.append((subject_from_story(block), format_story_html(block), story_id_from_story(block)))
+
+    # Mechanical, unconditional gate — see the lint_story docstring for why this
+    # cannot be "remember to check the docs" instead. Runs before create and
+    # before update; nothing reaches Zoho until every story passes.
+    if lint_failures:
+        print()
+        print("=" * 56)
+        print("  LOCKED FORMAT CHECK FAILED — nothing was sent to Zoho")
+        print("=" * 56)
+        for label, problems in lint_failures.items():
+            print(f"\n{label}")
+            for p in problems:
+                print(f"  - {p}")
+        print()
+        sys.exit(1)
+
+    if args.update:
+        print()
+        print("=" * 56)
+        print("  Updating Existing Items")
+        print(f"  Ids file:   {args.ids_file}")
+        print("=" * 56)
+        mapping = read_story_ids(args.ids_file)
+        for subject, description, story_id_label in items:
+            if not story_id_label:
+                print("ERROR: a story passed with --update has no 'STORY ID: ...' header line, "
+                      "so there is no label to look up in the ids file.")
+                sys.exit(1)
+            entry = mapping.get(story_id_label)
+            if not entry:
+                print(f"ERROR: {story_id_label!r} not found in {args.ids_file}.")
+                print(f"  Known labels: {sorted(mapping)}")
+                sys.exit(1)
+            print("-" * 56)
+            print(f"  {story_id_label}")
+            print(f"  -> item {entry.get('item_no', '?')} (item_id {entry.get('item_id')}, "
+                  f"sprint {entry.get('sprint_id')})")
+            update_item(token, proj["project_id"], entry["sprint_id"], entry["item_id"], base_url,
+                        name=subject, description=description)
+            print("  Updated.")
+        print("-" * 56)
+        print()
+        return
 
     print()
     print("=" * 56)
@@ -972,25 +1233,6 @@ def main():
         sprint_id = create_sprint(token, proj["project_id"], base_url, args.new_sprint,
                                    description=args.sprint_description)
         print(f"  Created sprint (ID: {sprint_id})\n")
-
-    # Build the (subject, description) pairs to create. Descriptions always go
-    # through format_story_html — Zoho's description field is rich text, so the
-    # raw "---"-delimited plain text would render as one unbroken block.
-    items = []
-    if args.subject:
-        desc = format_story_html(Path(args.description_file).read_text()) if args.description_file else None
-        items.append((args.subject, desc))
-    for path in args.story_files:
-        text = Path(path).read_text()
-        items.append((subject_from_story(text), format_story_html(text)))
-    if args.stories_file:
-        blocks = split_stories(Path(args.stories_file).read_text())
-        if not blocks:
-            print(f"ERROR: no stories found in {args.stories_file} "
-                  f"(looked for '--- STORY HEADER ---' markers).")
-            sys.exit(1)
-        for block in blocks:
-            items.append((subject_from_story(block), format_story_html(block)))
 
     item_type_label = args.item_type or proj["defaults"]["item_type"]
     priority_label  = args.priority  or proj["defaults"]["priority"]
@@ -1014,7 +1256,8 @@ def main():
         print(f"  WARNING: Task Type ID given but {proj_key!r} has no 'owner_fields.task_type' "
               f"in sprint_config.json - Task Type will not be set.")
 
-    for subject, description in items:
+    id_entries = []
+    for subject, description, story_id_label in items:
         print("-" * 56)
         print(f"  Subject:    {subject}")
         print(f"  Type:       {item_type_label}  (ID: {type_id})")
@@ -1032,8 +1275,13 @@ def main():
         item_no = result.get("itemNo", "?")
         item_id = result.get("addedItemId", "?")
         print(f"  Created: {item_no}  (internal ID: {item_id})")
+        if story_id_label:
+            id_entries.append((story_id_label, item_no, item_id, sprint_id, proj_key))
     print("-" * 56)
     print()
+
+    if id_entries:
+        append_story_ids(args.ids_file, id_entries)
 
 
 if __name__ == "__main__":

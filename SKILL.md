@@ -27,6 +27,19 @@ Hard rule from the workspace's root CLAUDE.md, restated here because it has been
 
 ---
 
+## Writing Style: Plain Language
+
+Every story must read in plain, simple English: someone with no technical background should be able to follow the User Story Statement, Description, and Acceptance Criteria on a first read. This applies to every section, not just the narrative ones.
+
+- Short sentences, one idea each. Break up any sentence carrying more than one clause joined by "which," "since," "so that it," or a comma-spliced aside.
+- No dense multi-clause prose. If a sentence needs a semicolon to hold two ideas together, split it into two sentences instead.
+- Plain everyday words over formal or academic ones, except for the technical terms the contract itself defines (client_code, api_key, entity_id, and so on) - keep those, since inventing a plainer synonym for a wire-locked term is worse than using the real one.
+- Read every section back before Step 7 and ask: would someone outside engineering, reading this for the first time, understand it without re-reading? If not, rewrite it, don't just trim it.
+
+This is not optional polish. A story written in dense, jargon-heavy prose fails the same way a technical-task-disguised-as-a-story fails: Dev and QA end up guessing the intended behavior instead of reading it directly off the story.
+
+---
+
 ## Step 0: Verify the Zoho Sprints Connection
 
 Before doing any slicing or story-writing work, confirm the Zoho Sprints connection is actually set up. Do not discover a missing connection only when Step 7 tries to punch stories in, after all the analysis work is already done.
@@ -108,9 +121,11 @@ Do not map PRD Section 6 stories 1:1 into Sprint stories. Instead:
 
 Read `references/story-format.md` before writing. **Story format (locked, use for every story created):**
 
+Every section below, not just the narrative ones, must be written in plain English a non-technical reader can follow on a first read: short sentences, one idea each, no dense multi-clause prose. See "Writing Style: Plain Language" above. This is not a separate pass done after the content is right; write it plainly the first time.
+
 ```
 --- STORY HEADER ---
-STORY ID: <Epic/Feature> | Story <N>
+STORY ID: <Epic/Feature> | Story <N> | <short Title Case description of the released behavior, e.g. "Void an Unapplied Credit Note">
 MODULE / EPIC: <resolved epic from Step 2>
 TEAM: Collexo, Pixi, or Nexeo, whichever product the PRD belongs to
 PRIORITY: P0/P1/P2/TBD
@@ -198,12 +213,15 @@ List the final story set in release order and state the real dependency for any 
 
 Read `references/quality-gates.md` and check every story against it before punching anything into Zoho: can it release without exposing incomplete behavior, can it stay live if a later story slips, are permissions/limits/failure behavior all defined, is every resulting state actually usable at the point it's introduced, and (for any story extending an already-live capability) does it prove existing behavior stays unchanged. Fix anything that fails before Step 7, not after.
 
+This step covers what needs judgment (behavioral completeness, correctness). The mechanical parts of the locked format, a three-part STORY ID, every required header field and section present, every scenario numbered, no banned em dash or double hyphen, are checked automatically by the script itself in Step 7 (`lint_story()`), not by re-reading the docs carefully. That automatic check exists specifically because "read the format doc again" has already failed to catch these in a real run: a story rewritten from a prior story's structure can silently drop something the locked template requires, no matter how many times the docs say otherwise. Plain language cannot be checked mechanically; that still depends on this step and on Step 4's instruction to write it plainly the first time.
+
 ## Step 7: Run the Script
 
 - **Never use the `claude.ai Zoho Sprint` MCP connector**: it's unauthenticated and is not how this actually works.
 - **Real auth mechanism:** each person running this needs their own Zoho OAuth credentials in a `.env` file; see Step 0 above and `scripts/README.md`.
 - **Script:** `scripts/create_prd_sprint_item.py` in this repo, with its own copy of `sprint_config.json` alongside it in the same folder. If you also maintain a separate script for bug-item creation elsewhere, keep the two separate; this one is scoped to PRD-to-Sprint story generation only.
 - **Every PRD gets its own new sprint, named after the PRD/feature name.** Do not add stories to whatever sprint is currently active.
+- **The script lints every story before sending anything to Zoho**, for both creating and updating. A missing TEAM field, a two-part STORY ID, an unnumbered scenario, a missing required section, or a banned em dash all fail the run with a printed list of exactly what's wrong, before any API call happens. Fix the story file and rerun; there is no flag to bypass this.
 
 ```bash
 python3 create_prd_sprint_item.py --new-sprint "Feature Name" \
@@ -218,6 +236,21 @@ python3 create_prd_sprint_item.py --new-sprint "Feature Name" \
   - Override per run with `--qa-owner-id`, `--dev-owner-id`, `--assigned-id` (repeatable), `--task-type-id` if a specific PRD needs different owners than the project's configured defaults.
   - **If the target project has no `owner_defaults` yet** (a brand-new project this skill hasn't been used on before), run `python3 create_prd_sprint_item.py --discover-owner-defaults --project <key>` first. This samples that project's backlog live (no local sync data required) to find the most common QA Owner/Dev Owner/Task Type values and prints a suggested block; confirm the suggestion with the user (the top statistical candidate isn't automatically the right default - e.g. recent activity and all-time volume can disagree) before adding it to that project's `sprint_config.json` entry. Once added, every future PRD for that project uses it automatically.
 - **No bypassing:** this step is part of the deliverable, not optional polish. If something doesn't work, say so explicitly and leave it as an open, tracked next action; don't silently skip it or fall back to only writing the stories into the Doc.
+
+## Step 8: Update Existing Stories
+
+Use this instead of Step 7 when the PRD changed after its stories were already punched into Zoho (a new endpoint, a corrected acceptance criterion, a rewritten description), not to create new stories.
+
+- **Every creation run writes an ids file automatically**, `zoho-story-ids.md` by default, in whatever directory the script was run from (override with `--ids-file`). It maps each story's STORY ID label to the Zoho item it became: `item_no`, `item_id`, `sprint_id`, `project`. This file is what makes an update possible; without it there is no reliable way to know which live item a given story maps to.
+- **To update, edit the story file(s) and rerun with `--update`** instead of `--new-sprint`/`--existing-sprint-id`:
+  ```bash
+  python3 create_prd_sprint_item.py --update \
+      --project collexo-team1 \
+      --stories-file all_stories.txt
+  ```
+  Each story's `STORY ID:` line is looked up in the ids file to find which item to push the new subject and description onto. **The STORY ID label is the join key, so if it changes (for example, fixing it to the correct three-part format), update the label in the ids file to match** before running `--update`, or the run will fail with "not found in ids file" rather than silently creating a mismatch.
+- **A story with no `STORY ID:` line, or a label missing from the ids file, fails the whole run before anything is sent**, listing exactly which label was not found and what labels are known. There is no partial-update fallback; fix the label or the ids file and rerun.
+- **This does not touch owners, priority, epic, or type.** Only `name` (the subject) and `description` change. If those other fields need to change too, that is a small, separate addition to `update_item()`'s callers in `main()`, not something to hand-edit in Zoho.
 
 **Status as of 2026-08-25:** `create_sprint()` and `create_item()` both confirmed against the official docs (`sprints.zoho.in/apidoc.html#Createsprint` / `#Createitem`) and live-tested successfully: sprint creation, item creation, title extraction (`subject_from_story()`, which pulls just the "I want [to] ..." action clause, not the full sentence), HTML-formatted descriptions (`format_story_html()`, which bolds headings, adds spacing, and bolds `Scenario N:` sub-lines), and all four owner/assignment fields, all confirmed working in the throwaway sprint "ZZZ_TEST_DELETE_ME: Sprint Script Verification" (ID `39713000007527839`) in `Collexo_Team_1`. The description parser is header-generic (any `--- SECTION ---` line), so the expanded Step 4 story format (2026-08-27) needed no script changes.
 
