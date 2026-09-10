@@ -787,13 +787,34 @@ def subject_from_story(text):
 def story_id_from_story(text):
     """Pulls the 'STORY ID: ...' line from a story's header block.
 
-    This is the stable label an --update run looks up in the ids file to find
-    which live Zoho item a story now maps to — the subject/name is expected to
-    change over time (that's the whole point of an update), so it can't be the
-    lookup key.
+    This is both the item's actual title (see title_from_story) and the stable
+    label an --update run looks up in the ids file to find which live Zoho
+    item a story now maps to. Editing the "Behavior" part of this label to
+    correct a story's title therefore also changes the lookup key; the ids
+    file's own label must be updated to match before the next --update, or
+    that story will fail with "not found in ids file" (SKILL.md Step 8 already
+    documents this).
     """
     m = re.search(r"^\s*STORY ID:\s*(.+?)\s*$", text, re.M)
     return m.group(1).strip() if m else None
+
+
+def title_from_story(text):
+    """The actual Zoho item title. Uses the STORY ID label directly, since that
+    is what story-format.md's own Title rules describe (Feature | Story N |
+    Behavior) — a prior version derived the title from the User Story
+    Statement's action clause instead (see subject_from_story), which produced
+    live Zoho item names carrying no feature name or story number at all,
+    silently diverging from the documented format even after the STORY ID
+    field itself was fixed to be correct. Falls back to the old action-clause
+    extraction only when there is no STORY ID line to use; lint_story()
+    already requires one for anything going through --story-file/
+    --stories-file, so this fallback is defensive, not the normal path.
+    """
+    label = story_id_from_story(text)
+    if label:
+        return label if len(label) <= 250 else label[:247].rstrip() + "..."
+    return subject_from_story(text)
 
 
 # ── Locked-format linting ───────────────────────────────────────────────────────
@@ -1157,7 +1178,7 @@ def main():
         problems = lint_story(text)
         if problems:
             lint_failures[label] = problems
-        items.append((subject_from_story(text), format_story_html(text), story_id_from_story(text)))
+        items.append((title_from_story(text), format_story_html(text), story_id_from_story(text)))
     if args.stories_file:
         blocks = split_stories(Path(args.stories_file).read_text())
         if not blocks:
@@ -1169,7 +1190,7 @@ def main():
             problems = lint_story(block)
             if problems:
                 lint_failures[label] = problems
-            items.append((subject_from_story(block), format_story_html(block), story_id_from_story(block)))
+            items.append((title_from_story(block), format_story_html(block), story_id_from_story(block)))
 
     # Mechanical, unconditional gate — see the lint_story docstring for why this
     # cannot be "remember to check the docs" instead. Runs before create and
